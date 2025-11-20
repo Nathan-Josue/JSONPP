@@ -358,6 +358,6 @@ async def encode(file: UploadFile = File(...)):
 
 if __name__ == '__main__':
     import uvicorn
-    print("🚀 Serveur JONX Converter démarré sur http://localhost:8000")
-    print("📂 Ouvrez votre navigateur et accédez à http://localhost:8000")
+    print("Serveur JONX Converter démarré sur http://localhost:8000")
+    print("Ouvrez votre navigateur et accédez à http://localhost:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
