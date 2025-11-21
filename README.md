@@ -64,21 +64,25 @@ Module de décodage qui lit et décompresse les fichiers JONX.
 - Support des index pour recherches rapides
 
 ### `server.py`
-Serveur FastAPI qui expose une interface web et une API REST pour convertir entre JSON et JONX.
+Serveur FastAPI qui expose une API REST complète pour convertir entre JSON et JONX.
 
-**Routes disponibles :**
-- `GET /` : Page d'accueil avec interface de conversion
-- `GET /about.html` : Page À propos
-- `GET /contact.html` : Page Contact
+**Endpoints disponibles :**
+- `GET /` : Redirection vers la documentation Swagger (`/docs`)
+- `GET /health` : Vérification de santé de l'API
+- `POST /api/encode` : Encoder un fichier JSON → JONX (upload fichier)
+- `POST /api/encode/json` : Encoder JSON → JONX (body JSON)
 - `POST /api/decode` : Décoder un fichier JONX → JSON
-- `POST /api/encode` : Encoder un fichier JSON → JONX
-- `POST /api/preview` : Prévisualiser les métadonnées d'un JSON sans générer le fichier
+- `POST /api/preview` : Prévisualiser les métadonnées JONX sans générer le fichier
 
 **Fonctionnalités :**
-- Interface web complète avec Monaco Editor
+- API REST complète avec documentation interactive (Swagger UI et ReDoc)
 - Conversion bidirectionnelle JSON ↔ JONX
-- Prévisualisation en temps réel
+- Détection automatique des types de colonnes
+- Compression zstd optimisée
+- Index automatiques pour colonnes numériques
+- Prévisualisation des métadonnées
 - Gestion CORS pour les requêtes cross-origin
+- Gestion d'erreurs complète avec codes HTTP appropriés
 
 ## 📦 Format JONX
 
@@ -189,62 +193,264 @@ uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
 Le serveur démarre sur `http://localhost:8000`
 
-#### Interface web
+#### Documentation interactive
 
-Accédez à `http://localhost:8000` pour utiliser l'interface web qui permet :
-- **Décoder JONX → JSON** : Upload d'un fichier `.json++` pour voir le JSON reconstruit
-- **Encoder JSON → JONX** : Upload d'un fichier `.json` pour générer un fichier `.json++`
-- **Créer un format** : Éditeur JSON avec prévisualisation en temps réel des métadonnées JONX
+Accédez à `http://localhost:8000/docs` pour utiliser l'interface Swagger UI qui permet :
+- **Tester tous les endpoints** directement depuis le navigateur
+- **Voir la documentation complète** de chaque endpoint
+- **Exécuter des requêtes** avec des exemples pré-remplis
+- **Voir les schémas de requête/réponse** en détail
+
+Accédez à `http://localhost:8000/redoc` pour une documentation alternative en format ReDoc.
 
 ## 🔌 API REST
 
-### POST /api/decode
+L'API REST expose plusieurs endpoints pour convertir entre JSON et JONX. La documentation interactive est disponible sur `/docs` (Swagger UI) et `/redoc` (ReDoc).
 
-Décode un fichier JONX et retourne le JSON reconstruit.
+### GET /health
 
-**Requête :**
-- Type : `multipart/form-data`
-- Paramètre : `file` (fichier `.json++` ou `.jonx`)
+**Vérification de santé de l'API**
+
+Endpoint de santé pour vérifier que l'API est opérationnelle. Utile pour les systèmes de monitoring et les health checks.
+
+**Méthode :** `GET`
 
 **Réponse :**
 ```json
 {
-  "success": true,
-  "file_name": "data_jonx.json++",
-  "file_size": 273,
-  "version": 1,
-  "fields": ["id", "name", "price", "category"],
-  "types": {"id": "int32", "name": "str", "price": "int32", "category": "str"},
-  "num_rows": 2,
-  "json_data": [
-    {"id": 1, "name": "Produit 1", "price": 100, "category": "Électronique"},
-    {"id": 2, "name": "Produit 2", "price": 200, "category": "Vêtements"}
-  ]
+  "status": "healthy",
+  "service": "JONX API",
+  "version": "1.0.0"
 }
 ```
+
+**Exemple avec curl :**
+```bash
+curl http://localhost:8000/health
+```
+
+**Exemple avec Python :**
+```python
+import requests
+response = requests.get("http://localhost:8000/health")
+print(response.json())
+```
+
+---
 
 ### POST /api/encode
 
-Encode un fichier JSON en format JONX.
+**Encoder JSON → JONX (upload fichier)**
 
-**Requête :**
-- Type : `multipart/form-data`
-- Paramètre : `file` (fichier `.json`)
+Encode un fichier JSON en format JONX optimisé via upload de fichier.
+
+**Méthode :** `POST`
+
+**Content-Type :** `multipart/form-data`
+
+**Paramètres :**
+- `file` (requis) : Fichier JSON à encoder (doit être une liste d'objets)
+
+**Format d'entrée :**
+- Le fichier JSON doit être une liste d'objets (array)
+- Tous les objets doivent avoir les mêmes clés
+- Les types sont détectés automatiquement
 
 **Réponse :**
-- Type : `application/octet-stream`
-- Fichier téléchargeable avec extension `.json++`
+- **Type :** `application/octet-stream`
+- **Headers :** `Content-Disposition: attachment; filename="<nom>.json++"`
+- **Corps :** Fichier binaire JONX téléchargeable
 
-### POST /api/preview
+**Codes d'erreur :**
+- `400` : Aucun fichier fourni, JSON invalide, ou liste vide
+- `500` : Erreur interne lors de l'encodage
 
-Prévisualise les métadonnées d'un JSON sans générer le fichier JONX.
+**Exemple avec curl :**
+```bash
+curl -X POST "http://localhost:8000/api/encode" \
+     -F "file=@data.json" \
+     --output output.json++
+```
 
-**Requête :**
+**Exemple avec Python :**
+```python
+import requests
+
+with open("data.json", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/api/encode",
+        files={"file": f}
+    )
+
+with open("output.json++", "wb") as out:
+    out.write(response.content)
+```
+
+**Format JSON d'entrée attendu :**
+```json
+[
+  {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
+  {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
+]
+```
+
+---
+
+### POST /api/encode/json
+
+**Encoder JSON → JONX (body JSON)**
+
+Encode des données JSON envoyées dans le body de la requête en format JONX. Alternative à l'upload de fichier pour les données générées dynamiquement.
+
+**Méthode :** `POST`
+
+**Content-Type :** `application/json`
+
+**Body :**
 ```json
 {
   "data": [
-    {"id": 1, "name": "Produit 1", "price": 100},
-    {"id": 2, "name": "Produit 2", "price": 200}
+    {"id": 1, "name": "Produit 1", "price": 100.50},
+    {"id": 2, "name": "Produit 2", "price": 200.75}
+  ]
+}
+```
+
+**Réponse :**
+- **Type :** `application/octet-stream`
+- **Headers :** `Content-Disposition: attachment; filename="output.json++"`
+- **Corps :** Fichier binaire JONX téléchargeable
+
+**Codes d'erreur :**
+- `400` : JSON invalide ou liste vide
+- `500` : Erreur interne lors de l'encodage
+
+**Exemple avec curl :**
+```bash
+curl -X POST "http://localhost:8000/api/encode/json" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "data": [
+         {"id": 1, "name": "Produit 1", "price": 100.50},
+         {"id": 2, "name": "Produit 2", "price": 200.75}
+       ]
+     }' \
+     --output output.json++
+```
+
+**Exemple avec Python :**
+```python
+import requests
+
+data = {
+    "data": [
+        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
+        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
+    ]
+}
+
+response = requests.post(
+    "http://localhost:8000/api/encode/json",
+    json=data
+)
+
+with open("output.json++", "wb") as f:
+    f.write(response.content)
+```
+
+---
+
+### POST /api/decode
+
+**Décoder JONX → JSON**
+
+Décode un fichier JONX et retourne les données JSON reconstruites avec toutes les métadonnées.
+
+**Méthode :** `POST`
+
+**Content-Type :** `multipart/form-data`
+
+**Paramètres :**
+- `file` (requis) : Fichier JONX à décoder (extension `.json++` ou `.jonx`)
+
+**Réponse :**
+```json
+{
+  "success": true,
+  "file_name": "data.json++",
+  "file_size": 273,
+  "version": 1,
+  "fields": ["id", "name", "price", "active"],
+  "types": {
+    "id": "int32",
+    "name": "str",
+    "price": "float32",
+    "active": "bool"
+  },
+  "num_rows": 2,
+  "json_data": [
+    {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
+    {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
+  ]
+}
+```
+
+**Champs de la réponse :**
+- `success` : Indicateur de succès (bool)
+- `file_name` : Nom du fichier uploadé (str)
+- `file_size` : Taille du fichier en bytes (int)
+- `version` : Version du format JONX (int)
+- `fields` : Liste des noms de colonnes (list)
+- `types` : Dictionnaire des types par colonne (dict)
+- `num_rows` : Nombre de lignes de données (int)
+- `json_data` : Données JSON reconstruites (list)
+
+**Codes d'erreur :**
+- `400` : Aucun fichier fourni ou fichier JONX invalide
+- `500` : Erreur interne lors du décodage
+
+**Exemple avec curl :**
+```bash
+curl -X POST "http://localhost:8000/api/decode" \
+     -F "file=@data.json++"
+```
+
+**Exemple avec Python :**
+```python
+import requests
+import json
+
+with open("data.json++", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/api/decode",
+        files={"file": f}
+    )
+
+result = response.json()
+print(f"Colonnes: {result['fields']}")
+print(f"Types: {result['types']}")
+print(f"Nombre de lignes: {result['num_rows']}")
+print(f"Données: {json.dumps(result['json_data'], indent=2)}")
+```
+
+---
+
+### POST /api/preview
+
+**Prévisualiser les métadonnées JONX**
+
+Prévisualise les métadonnées et estime la taille d'un fichier JONX sans le générer. Utile pour valider la structure des données avant l'encodage.
+
+**Méthode :** `POST`
+
+**Content-Type :** `application/json`
+
+**Body :**
+```json
+{
+  "data": [
+    {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
+    {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
   ]
 }
 ```
@@ -254,11 +460,69 @@ Prévisualise les métadonnées d'un JSON sans générer le fichier JONX.
 {
   "success": true,
   "version": 1,
-  "fields": ["id", "name", "price"],
-  "types": {"id": "int32", "name": "str", "price": "int32"},
+  "fields": ["id", "name", "price", "active"],
+  "types": {
+    "id": "int32",
+    "name": "str",
+    "price": "float32",
+    "active": "bool"
+  },
   "num_rows": 2,
   "estimated_size": 273
 }
+```
+
+**Champs de la réponse :**
+- `success` : Indicateur de succès (bool)
+- `version` : Version du format JONX qui serait utilisée (int)
+- `fields` : Liste des colonnes détectées (list)
+- `types` : Types automatiquement détectés pour chaque colonne (dict)
+- `num_rows` : Nombre de lignes de données (int)
+- `estimated_size` : Taille estimée du fichier JONX en bytes (int)
+
+**Détection automatique des types :**
+- `int32` : Entiers
+- `float32` : Nombres décimaux
+- `str` : Chaînes de caractères
+- `bool` : Booléens
+- `json` : Objets complexes (fallback)
+
+**Codes d'erreur :**
+- `400` : Liste JSON vide
+- `500` : Erreur interne lors de l'analyse
+
+**Exemple avec curl :**
+```bash
+curl -X POST "http://localhost:8000/api/preview" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "data": [
+         {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
+         {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
+       ]
+     }'
+```
+
+**Exemple avec Python :**
+```python
+import requests
+
+data = {
+    "data": [
+        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
+        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
+    ]
+}
+
+response = requests.post(
+    "http://localhost:8000/api/preview",
+    json=data
+)
+
+result = response.json()
+print(f"Colonnes détectées: {result['fields']}")
+print(f"Types: {result['types']}")
+print(f"Taille estimée: {result['estimated_size']} bytes")
 ```
 
 ## 📝 Exemples
@@ -288,30 +552,59 @@ min_price = jonx_file.find_min("price", use_index=True)
 print(f"Prix minimum: {min_price}")
 ```
 
-### Exemple avec l'API REST
+### Exemple complet avec l'API REST
 
 ```python
 import requests
+import json
 
-# Décoder un fichier JONX
-with open("json++/data_jonx.json++", "rb") as f:
+# 1. Prévisualiser les métadonnées
+preview_data = {
+    "data": [
+        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
+        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
+    ]
+}
+
+response = requests.post(
+    "http://localhost:8000/api/preview",
+    json=preview_data
+)
+preview_result = response.json()
+print(f"Métadonnées: {json.dumps(preview_result, indent=2)}")
+
+# 2. Encoder JSON → JONX (via body JSON)
+response = requests.post(
+    "http://localhost:8000/api/encode/json",
+    json=preview_data
+)
+
+with open("output.json++", "wb") as f:
+    f.write(response.content)
+print("Fichier JONX créé: output.json++")
+
+# 3. Décoder JONX → JSON
+with open("output.json++", "rb") as f:
     response = requests.post(
         "http://localhost:8000/api/decode",
         files={"file": f}
     )
-    result = response.json()
-    print(result["json_data"])
+    decode_result = response.json()
+    print(f"Données décodées: {json.dumps(decode_result['json_data'], indent=2)}")
 
-# Prévisualiser un JSON
-response = requests.post(
-    "http://localhost:8000/api/preview",
-    json={
-        "data": [
-            {"id": 1, "name": "Test", "price": 100}
-        ]
-    }
-)
-print(response.json())
+# 4. Encoder depuis un fichier JSON
+with open("data.json", "rb") as f:
+    response = requests.post(
+        "http://localhost:8000/api/encode",
+        files={"file": f}
+    )
+    with open("data.json++", "wb") as out:
+        out.write(response.content)
+    print("Fichier JONX créé depuis upload: data.json++")
+
+# 5. Vérifier la santé de l'API
+response = requests.get("http://localhost:8000/health")
+print(f"Statut API: {response.json()}")
 ```
 
 ## 🎯 Avantages du format JONX
