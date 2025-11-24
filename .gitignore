@@ -1,7 +1,7 @@
 # Dossiers et fichiers spécifiques
 /data
 .idea
-
+tester.py
 # Fichiers Python
 __pycache__/
 *.py[cod]
