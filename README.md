@@ -1,626 +1,352 @@
-# JSON++ (JONX) - Format de fichier optimisé pour JSON
+# jsonplusplus
 
-JSON++ (JONX) est un format de fichier binaire optimisé pour stocker des données JSON de manière efficace. Il utilise la compression zstd et le stockage en colonnes pour réduire la taille des fichiers et améliorer les performances de lecture.
+[![PyPI version](https://badge.fury.io/py/jsonplusplus.svg)](https://badge.fury.io/py/jsonplusplus)
+[![Python versions](https://img.shields.io/pypi/pyversions/jsonplusplus.svg)](https://pypi.org/project/jsonplusplus/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Nathan-Josue/jsonplusplus/ci.yml?branch=master)](https://github.com/Nathan-Josue/jsonplusplus/actions)
 
-## 📋 Table des matières
+**Un format de données JSON colonné, compressé et optimisé pour la vitesse et le stockage.**
 
-- [Installation](#installation)
-- [Architecture](#architecture)
-- [Format JONX](#format-jonx)
-- [Utilisation](#utilisation)
-  - [encoder.py](#encoderpy)
-  - [decoder.py](#decoderpy)
-  - [server.py](#serverpy)
-- [API REST](#api-rest)
-- [Exemples](#exemples)
+`jsonplusplus` est une bibliothèque Python qui introduit le format **JONX (JSON++)**, un format binaire optimisé conçu pour stocker et manipuler efficacement de grandes quantités de données JSON. Parfait pour l'analytique, le machine learning et les datasets volumineux.
 
-## 🚀 Installation
+---
 
-### Dépendances
+## Présentation du format
+
+### Qu'est-ce que JSON++ / JONX ?
+
+**JONX (JSON++)** est un format de fichier binaire qui transforme des données JSON en un format **colonné** (columnar storage) avec compression **Zstandard** et auto-détection des types. Contrairement au JSON traditionnel qui stocke les données ligne par ligne, JONX organise les données en colonnes contiguës, permettant une compression supérieure et des accès sélectifs ultra-rapides.
+
+### Comparaison avec JSON traditionnel
+
+| Caractéristique | JSON traditionnel | JONX (JSON++) |
+|----------------|------------------|---------------|
+| **Format** | Texte (UTF-8) | Binaire optimisé |
+| **Compression** | Aucune (ou gzip) | Zstandard (niveau 7) |
+| **Stockage** | Ligne par ligne | Colonnes contiguës |
+| **Types** | Tous en texte | Auto-détection (int16, int32, float16, float32, bool, str, json) |
+| **Index** | Aucun | Index triés automatiques |
+| **Lecture sélective** | Non | Oui (décompression à la demande) |
+| **Performance** | Lente (parsing) | Ultra-rapide (orjson + binaire) |
+
+### Points forts
+
+- **Compression Zstandard** : Réduction de taille jusqu'à 80% selon les données
+-  **Stockage en colonnes** : Meilleure compression pour données tabulaires
+-  **Auto-détection des types** : int16, int32, float16, float32, bool, string, json
+-  **Index optimisés** : Recherches min/max ultra-rapides sur colonnes numériques
+-  **Encodage/décodage rapide** : Utilise `orjson` pour des performances maximales
+-  **Chargement sélectif** : Décompression à la demande = moins de RAM
+-  **Compatible Python natif** : Aucune dépendance externe lourde
+
+---
+
+## 📦 Installation
 
 ```bash
-pip install -r requirements.txt
+pip install jsonplusplus
 ```
 
-Les dépendances requises sont :
-- `fastapi>=0.104.0` - Framework web pour l'API
-- `uvicorn[standard]>=0.24.0` - Serveur ASGI
-- `orjson>=3.9.0` - Parser JSON rapide
-- `zstandard>=0.21.0` - Compression zstd
-- `python-multipart>=0.0.6` - Gestion des uploads de fichiers
+**Dépendances requises :**
+- Python >= 3.8
+- `orjson>=3.9.0` - Parser JSON ultra-rapide
+- `zstandard>=0.21.0` - Compression Zstandard
+- `numpy>=1.20.0` - Support float16
 
-## 🏗️ Architecture
+---
 
-Le projet est composé de trois modules principaux :
+## 💻 Fonctionnalités principales
 
-### `encoder.py`
-Module d'encodage qui convertit des fichiers JSON en format JONX.
+### Fonctions d'encodage
 
-**Fonctions principales :**
-- `detect_type(values)` : Détecte automatiquement le type d'une colonne (int32, float32, str, bool, json)
-- `pack_column(values, col_type)` : Transforme une colonne en format binaire ou JSON compressé
-- `jonx_encode(json_path, jonx_path)` : Fonction principale pour encoder un fichier JSON en JONX
+- **`jonx_encode(json_path, jonx_path)`** : Convertit un fichier JSON en fichier JONX
+- **`encode_to_bytes(json_data)`** : Encode des données JSON (liste d'objets) en bytes JONX
 
-**Caractéristiques :**
-- Détection automatique des colonnes et types
-- Compression zstd (niveau 3)
-- Création automatique d'index pour les colonnes numériques
-- Stockage en colonnes pour une meilleure compression
+### Fonctions de décodage
 
-### `decoder.py`
-Module de décodage qui lit et décompresse les fichiers JONX.
+- **`decode_from_bytes(byte_data)`** : Décode des bytes JONX et retourne un dictionnaire avec les données JSON reconstruites
 
-**Classe principale :**
-- `JONXFile` : Classe pour charger et manipuler les fichiers JONX
+### Classe JONXFile
 
-**Méthodes :**
-- `__init__(path)` : Charge un fichier JONX
-- `get_column(field_name)` : Récupère une colonne décompressée
-- `find_min(field_name, use_index=False)` : Trouve la valeur minimale d'une colonne (avec support d'index)
+- **`JONXFile(path)`** : Charge un fichier JONX pour accès colonne par colonne
+  - **`get_column(field_name)`** : Récupère une colonne décompressée
+  - **`find_min(field_name, use_index=False)`** : Trouve la valeur minimale (avec support d'index)
+  - Propriétés : `fields`, `types`, `indexes`
 
-**Caractéristiques :**
-- Chargement paresseux (colonnes compressées stockées en mémoire)
-- Décompression à la demande
-- Support des index pour recherches rapides
+---
 
-### `server.py`
-Serveur FastAPI qui expose une API REST complète pour convertir entre JSON et JONX.
+## 📖 Exemples
 
-**Endpoints disponibles :**
-- `GET /` : Redirection vers la documentation Swagger (`/docs`)
-- `GET /health` : Vérification de santé de l'API
-- `POST /api/encode` : Encoder un fichier JSON → JONX (upload fichier)
-- `POST /api/encode/json` : Encoder JSON → JONX (body JSON)
-- `POST /api/decode` : Décoder un fichier JONX → JSON
-- `POST /api/preview` : Prévisualiser les métadonnées JONX sans générer le fichier
+### Exemple rapide
 
-**Fonctionnalités :**
-- API REST complète avec documentation interactive (Swagger UI et ReDoc)
-- Conversion bidirectionnelle JSON ↔ JONX
-- Détection automatique des types de colonnes
-- Compression zstd optimisée
-- Index automatiques pour colonnes numériques
-- Prévisualisation des métadonnées
-- Gestion CORS pour les requêtes cross-origin
-- Gestion d'erreurs complète avec codes HTTP appropriés
+```python
+from jsonplusplus import jonx_encode, decode_from_bytes
 
-## 📦 Format JONX|JSON++
+# Encoder un fichier JSON en JONX
+jonx_encode("data.json", "data.jonx")
 
-Le format JONX est structuré comme suit :
+# Décoder depuis bytes
+with open("data.jonx", "rb") as f:
+    result = decode_from_bytes(f.read())
+
+print(result["json_data"][0])
+print(f"Colonnes: {result['fields']}")
+print(f"Types: {result['types']}")
+```
+
+### Exemple avancé avec JONXFile
+
+```python
+from jsonplusplus import JONXFile
+
+# Charger un fichier JONX
+file = JONXFile("data.jonx")
+
+# Accéder aux métadonnées
+print(f"Colonnes disponibles: {file.fields}")
+print(f"Types détectés: {file.types}")
+
+# Récupérer une colonne spécifique (décompression à la demande)
+ages = file.get_column("age")
+prices = file.get_column("price")
+
+# Utiliser les index pour des recherches ultra-rapides
+min_age = file.find_min("age", use_index=True)
+max_price = max(file.get_column("price"))
+
+print(f"Âge minimum: {min_age}")
+print(f"Prix maximum: {max_price}")
+
+# Reconstruire le JSON complet si nécessaire
+json_data = []
+num_rows = len(ages)
+for i in range(num_rows):
+    obj = {field: file.get_column(field)[i] for field in file.fields}
+    json_data.append(obj)
+```
+
+### Exemple avec encode_to_bytes
+
+```python
+from jsonplusplus import encode_to_bytes, decode_from_bytes
+
+# Données JSON en mémoire
+data = [
+    {"id": 1, "name": "Alice", "age": 30, "salary": 50000.5, "active": True},
+    {"id": 2, "name": "Bob", "age": 25, "salary": 45000.0, "active": False},
+    {"id": 3, "name": "Charlie", "age": 35, "salary": 60000.75, "active": True}
+]
+
+# Encoder en bytes JONX
+jonx_bytes = encode_to_bytes(data)
+
+# Sauvegarder ou transmettre
+with open("output.jonx", "wb") as f:
+    f.write(jonx_bytes)
+
+# Décoder plus tard
+result = decode_from_bytes(jonx_bytes)
+print(f"Encodé {result['num_rows']} lignes avec {len(result['fields'])} colonnes")
+```
+
+---
+
+## 🏗️ Structure interne du format JONX
+
+Le format JONX est structuré de manière séquentielle pour permettre une lecture efficace :
 
 ```
-[Header: 8 bytes]
-├── Signature: "JONX" (4 bytes)
-└── Version: uint32 (4 bytes)
-
-[Schéma compressé]
-├── Taille: uint32 (4 bytes)
-└── Données compressées (zstd)
-
-[Colonnes compressées]
-├── Pour chaque colonne:
-│   ├── Taille: uint32 (4 bytes)
-│   └── Données compressées (zstd)
-
-[Index compressés]
-├── Nombre d'index: uint32 (4 bytes)
-└── Pour chaque index:
-    ├── Taille du nom: uint32 (4 bytes)
-    ├── Nom du champ (UTF-8)
-    ├── Taille de l'index: uint32 (4 bytes)
-    └── Index compressé (zstd)
+┌─────────────────────────────────────────────────────────────┐
+│ HEADER (8 bytes)                                             │
+├─────────────────────────────────────────────────────────────┤
+│ Signature: "JONX" (4 bytes)                                 │
+│ Version: uint32 (4 bytes)                                    │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ SCHÉMA COMPRESSÉ                                             │
+├─────────────────────────────────────────────────────────────┤
+│ Taille: uint32 (4 bytes)                                     │
+│ Données compressées (zstd): {fields: [...], types: {...}}   │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ COLONNES COMPRESSÉES (pour chaque colonne)                   │
+├─────────────────────────────────────────────────────────────┤
+│ Taille: uint32 (4 bytes)                                     │
+│ Données compressées (zstd): colonne binaire ou JSON          │
+└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ INDEX COMPRESSÉS (optionnels)                                │
+├─────────────────────────────────────────────────────────────┤
+│ Nombre d'index: uint32 (4 bytes)                             │
+│ Pour chaque index:                                           │
+│   ├── Taille du nom: uint32 (4 bytes)                        │
+│   ├── Nom du champ (UTF-8)                                   │
+│   ├── Taille de l'index: uint32 (4 bytes)                    │
+│   └── Index compressé (zstd): indices triés                  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Types de données supportés
 
-- **int32** : Entiers 32 bits (stockés en binaire)
-- **float32** : Flottants 32 bits (stockés en binaire)
-- **bool** : Booléens (stockés en binaire)
-- **str** : Chaînes de caractères (JSON compressé)
-- **json** : Objets complexes (JSON compressé)
+| Type | Description | Stockage |
+|------|-------------|----------|
+| `int16` | Entiers 16 bits (-32768 à 32767) | Binaire (2 bytes/valeur) |
+| `int32` | Entiers 32 bits | Binaire (4 bytes/valeur) |
+| `float16` | Flottants 16 bits (IEEE 754) | Binaire (2 bytes/valeur) |
+| `float32` | Flottants 32 bits (IEEE 754) | Binaire (4 bytes/valeur) |
+| `bool` | Booléens | Binaire (1 byte/valeur) |
+| `str` | Chaînes de caractères | JSON compressé (zstd) |
+| `json` | Objets complexes | JSON compressé (zstd) |
+
+### Auto-détection des types
+
+La bibliothèque détecte automatiquement le type optimal pour chaque colonne :
+
+- **Entiers** : `int16` si toutes les valeurs sont dans [-32768, 32767], sinon `int32`
+- **Flottants** : `float16` si précision ≤ 3 décimales et dans la plage IEEE 754, sinon `float32`
+- **Booléens** : Détectés automatiquement
+- **Chaînes** : Stockées comme `str` (JSON compressé)
+- **Objets complexes** : Stockés comme `json` (JSON compressé)
 
 ### Index automatiques
 
-Les colonnes numériques (int32, float32) génèrent automatiquement un index trié pour permettre des recherches rapides (min, max, etc.).
+Les colonnes numériques (`int16`, `int32`, `float16`, `float32`) génèrent automatiquement un **index trié** compressé, permettant des recherches min/max en O(1) après décompression de l'index.
 
-## 💻 Utilisation
+### Reconstruction ligne par ligne
 
-### encoder.py
-
-```python
-from backend.logical.encoder import jonx_encode
-
-# Convertir un fichier JSON en JONX
-jonx_encode("data/json/data.json", "data/json++/data_jonx.json++")
-```
-
-**Exemple de JSON d'entrée :**
-```json
-[
-  {"id": 1, "name": "Produit 1", "price": 100, "category": "Électronique"},
-  {"id": 2, "name": "Produit 2", "price": 200, "category": "Vêtements"}
-]
-```
-
-**Résultat :**
-- Fichier `data_jonx.json++` créé avec compression zstd
-- Index automatique sur les colonnes `id` et `price`
-
-### decoder.py
-
-```python
-from backend.logical.decoder import JONXFile
-
-# Charger un fichier JONX
-jonx_file = JONXFile("json++/data_jonx.json++")
-
-# Accéder à une colonne
-prices = jonx_file.get_column("price")
-
-# Trouver le prix minimum (avec index pour performance)
-min_price = jonx_file.find_min("price", use_index=True)
-print(f"Prix minimum: {min_price}")
-
-# Reconstruire le JSON complet
-columns = {}
-for field in jonx_file.fields:
-    columns[field] = jonx_file.get_column(field)
-
-# Reconstruire les objets
-num_rows = len(columns[jonx_file.fields[0]])
-json_data = []
-for i in range(num_rows):
-    obj = {field: columns[field][i] for field in jonx_file.fields}
-    json_data.append(obj)
-```
-
-**Méthodes disponibles :**
-- `get_column(field_name)` : Récupère une colonne décompressée
-- `find_min(field_name, use_index=False)` : Trouve la valeur minimale
-- Propriétés : `fields`, `types`, `indexes`
-
-### server.py
-
-#### Démarrage du serveur
-
-```bash
-# Méthode 1 : Directement avec Python
-python server.py
-
-# Méthode 2 : Avec uvicorn
-uvicorn server:app --reload --host 0.0.0.0 --port 8000
-```
-
-Le serveur démarre sur `http://localhost:8000`
-
-#### Documentation interactive
-
-Accédez à `http://localhost:8000/docs` pour utiliser l'interface Swagger UI qui permet :
-- **Tester tous les endpoints** directement depuis le navigateur
-- **Voir la documentation complète** de chaque endpoint
-- **Exécuter des requêtes** avec des exemples pré-remplis
-- **Voir les schémas de requête/réponse** en détail
-
-Accédez à `http://localhost:8000/redoc` pour une documentation alternative en format ReDoc.
-
-## 🔌 API REST
-
-L'API REST expose plusieurs endpoints pour convertir entre JSON et JONX. La documentation interactive est disponible sur `/docs` (Swagger UI) et `/redoc` (ReDoc).
-
-### GET /health
-
-**Vérification de santé de l'API**
-
-Endpoint de santé pour vérifier que l'API est opérationnelle. Utile pour les systèmes de monitoring et les health checks.
-
-**Méthode :** `GET`
-
-**Réponse :**
-```json
-{
-  "status": "healthy",
-  "service": "JONX API",
-  "version": "1.0.0"
-}
-```
-
-**Exemple avec curl :**
-```bash
-curl http://localhost:8000/health
-```
-
-**Exemple avec Python :**
-```python
-import requests
-response = requests.get("http://localhost:8000/health")
-print(response.json())
-```
+Les données sont reconstruites ligne par ligne en combinant les colonnes décompressées selon l'ordre des champs dans le schéma.
 
 ---
 
-### POST /api/encode
+##  Avantages techniques
 
-**Encoder JSON → JONX (upload fichier)**
+### Compression élevée
 
-Encode un fichier JSON en format JONX optimisé via upload de fichier.
+Grâce à la combinaison du stockage en colonnes et de la compression Zstandard, JONX peut réduire la taille des fichiers de **50% à 80%** par rapport au JSON brut, selon la structure des données.
 
-**Méthode :** `POST`
+### Chargement sélectif de colonnes
 
-**Content-Type :** `multipart/form-data`
+Contrairement au JSON qui doit charger toutes les données, JONX permet de décompresser uniquement les colonnes nécessaires, réduisant significativement l'utilisation de la RAM pour les datasets volumineux.
 
-**Paramètres :**
-- `file` (requis) : Fichier JSON à encoder (doit être une liste d'objets)
+### Parfait pour l'analytique et le ML
 
-**Format d'entrée :**
-- Le fichier JSON doit être une liste d'objets (array)
-- Tous les objets doivent avoir les mêmes clés
-- Les types sont détectés automatiquement
+- **Analytics** : Accès rapide aux colonnes numériques avec index
+- **Machine Learning** : Chargement sélectif des features nécessaires
+- **Datasets volumineux** : Compression efficace et lecture paresseuse
 
-**Réponse :**
-- **Type :** `application/octet-stream`
-- **Headers :** `Content-Disposition: attachment; filename="<nom>.json++"`
-- **Corps :** Fichier binaire JONX téléchargeable
+### Compatible Python natif
 
-**Codes d'erreur :**
-- `400` : Aucun fichier fourni, JSON invalide, ou liste vide
-- `500` : Erreur interne lors de l'encodage
-
-**Exemple avec curl :**
-```bash
-curl -X POST "http://localhost:8000/api/encode" \
-     -F "file=@data.json" \
-     --output output.json++
-```
-
-**Exemple avec Python :**
-```python
-import requests
-
-with open("data.json", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/api/encode",
-        files={"file": f}
-    )
-
-with open("output.json++", "wb") as out:
-    out.write(response.content)
-```
-
-**Format JSON d'entrée attendu :**
-```json
-[
-  {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
-  {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
-]
-```
+Aucune dépendance externe lourde. Utilise uniquement des bibliothèques Python standard et des bindings optimisés (`orjson`, `zstandard`, `numpy`).
 
 ---
 
-### POST /api/encode/json
+## 🗺️ Roadmap
 
-**Encoder JSON → JONX (body JSON)**
+### Version 1.0 (Actuelle) ✅
 
-Encode des données JSON envoyées dans le body de la requête en format JONX. Alternative à l'upload de fichier pour les données générées dynamiquement.
+- [x] Encodage/décodage JSON ↔ JONX
+- [x] Auto-détection des types (int16, int32, float16, float32, bool, str, json)
+- [x] Compression Zstandard
+- [x] Index automatiques pour colonnes numériques
+- [x] Classe `JONXFile` avec accès colonne par colonne
+- [x] Support des recherches min/max avec index
 
-**Méthode :** `POST`
+### Version 2.0 (Planifiée) 🚧
 
-**Content-Type :** `application/json`
+- [ ] Support des types additionnels (int8, int64, float64)
+- [ ] Index personnalisés (multi-colonnes)
+- [ ] Filtrage et projection de colonnes optimisés
+- [ ] Support des données nulles (NULL handling)
+- [ ] Streaming pour fichiers volumineux
+- [ ] API de requête simple (filtres, agrégations)
+- [ ] Benchmarks de performance complets
 
-**Body :**
-```json
-{
-  "data": [
-    {"id": 1, "name": "Produit 1", "price": 100.50},
-    {"id": 2, "name": "Produit 2", "price": 200.75}
-  ]
-}
-```
+### Version 3.0 (Future) 🔮
 
-**Réponse :**
-- **Type :** `application/octet-stream`
-- **Headers :** `Content-Disposition: attachment; filename="output.json++"`
-- **Corps :** Fichier binaire JONX téléchargeable
-
-**Codes d'erreur :**
-- `400` : JSON invalide ou liste vide
-- `500` : Erreur interne lors de l'encodage
-
-**Exemple avec curl :**
-```bash
-curl -X POST "http://localhost:8000/api/encode/json" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "data": [
-         {"id": 1, "name": "Produit 1", "price": 100.50},
-         {"id": 2, "name": "Produit 2", "price": 200.75}
-       ]
-     }' \
-     --output output.json++
-```
-
-**Exemple avec Python :**
-```python
-import requests
-
-data = {
-    "data": [
-        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
-        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
-    ]
-}
-
-response = requests.post(
-    "http://localhost:8000/api/encode/json",
-    json=data
-)
-
-with open("output.json++", "wb") as f:
-    f.write(response.content)
-```
+- [ ] Support multi-fichiers (partitionnement)
+- [ ] Compression adaptative (choix du niveau zstd par colonne)
+- [ ] Métadonnées étendues (statistiques, cardinalité)
+- [ ] Intégration avec pandas/Polars
+- [ ] Support des types temporels (date, datetime, timestamp)
+- [ ] Compression différentielle pour séries temporelles
+- [ ] API de requête avancée (base de donnée)
 
 ---
 
-### POST /api/decode
+## 📄 Licence
 
-**Décoder JONX → JSON**
-
-Décode un fichier JONX et retourne les données JSON reconstruites avec toutes les métadonnées.
-
-**Méthode :** `POST`
-
-**Content-Type :** `multipart/form-data`
-
-**Paramètres :**
-- `file` (requis) : Fichier JONX à décoder (extension `.json++` ou `.jonx`)
-
-**Réponse :**
-```json
-{
-  "success": true,
-  "file_name": "data.json++",
-  "file_size": 273,
-  "version": 1,
-  "fields": ["id", "name", "price", "active"],
-  "types": {
-    "id": "int32",
-    "name": "str",
-    "price": "float32",
-    "active": "bool"
-  },
-  "num_rows": 2,
-  "json_data": [
-    {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
-    {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
-  ]
-}
-```
-
-**Champs de la réponse :**
-- `success` : Indicateur de succès (bool)
-- `file_name` : Nom du fichier uploadé (str)
-- `file_size` : Taille du fichier en bytes (int)
-- `version` : Version du format JONX (int)
-- `fields` : Liste des noms de colonnes (list)
-- `types` : Dictionnaire des types par colonne (dict)
-- `num_rows` : Nombre de lignes de données (int)
-- `json_data` : Données JSON reconstruites (list)
-
-**Codes d'erreur :**
-- `400` : Aucun fichier fourni ou fichier JONX invalide
-- `500` : Erreur interne lors du décodage
-
-**Exemple avec curl :**
-```bash
-curl -X POST "http://localhost:8000/api/decode" \
-     -F "file=@data.json++"
-```
-
-**Exemple avec Python :**
-```python
-import requests
-import json
-
-with open("data.json++", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/api/decode",
-        files={"file": f}
-    )
-
-result = response.json()
-print(f"Colonnes: {result['fields']}")
-print(f"Types: {result['types']}")
-print(f"Nombre de lignes: {result['num_rows']}")
-print(f"Données: {json.dumps(result['json_data'], indent=2)}")
-```
+Ce projet est sous licence **MIT**. Voir le fichier `LICENSE` pour plus de détails.
 
 ---
 
-### POST /api/preview
+## 🤝 Contribution
 
-**Prévisualiser les métadonnées JONX**
+Les contributions sont les bienvenues ! Voici comment contribuer :
 
-Prévisualise les métadonnées et estime la taille d'un fichier JONX sans le générer. Utile pour valider la structure des données avant l'encodage.
+### Processus de contribution
 
-**Méthode :** `POST`
+1. **Fork** le projet
+2. Créez une **branche** pour votre feature (`git checkout -b feature/AmazingFeature`)
+3. **Commit** vos changements (`git commit -m 'Add some AmazingFeature'`)
+4. **Push** vers la branche (`git push origin feature/AmazingFeature`)
+5. Ouvrez une **Pull Request**
 
-**Content-Type :** `application/json`
+### Règles et style
 
-**Body :**
-```json
-{
-  "data": [
-    {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
-    {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
-  ]
-}
+- **Formatage** : Utilisez `black` pour le formatage du code
+- **Linting** : Respectez `ruff` ou `flake8` pour le linting
+- **Tests** : Ajoutez des tests pour toute nouvelle fonctionnalité
+- **Documentation** : Mettez à jour la documentation si nécessaire
+- **Type hints** : Utilisez les annotations de type Python 3.8+
+
+### Structure du projet
+
+```
+jsonplusplus/
+├── src/
+│   └── jsonplusplus/
+│       ├── __init__.py
+│       ├── encoder.py      # Encodage JSON → JONX
+│       └── decoder.py      # Décodage JONX → JSON
+├── tests/                  # Tests unitaires
+├── README.md
+├── pyproject.toml
+└── LICENSE
 ```
 
-**Réponse :**
-```json
-{
-  "success": true,
-  "version": 1,
-  "fields": ["id", "name", "price", "active"],
-  "types": {
-    "id": "int32",
-    "name": "str",
-    "price": "float32",
-    "active": "bool"
-  },
-  "num_rows": 2,
-  "estimated_size": 273
-}
-```
+### Signaler un bug
 
-**Champs de la réponse :**
-- `success` : Indicateur de succès (bool)
-- `version` : Version du format JONX qui serait utilisée (int)
-- `fields` : Liste des colonnes détectées (list)
-- `types` : Types automatiquement détectés pour chaque colonne (dict)
-- `num_rows` : Nombre de lignes de données (int)
-- `estimated_size` : Taille estimée du fichier JONX en bytes (int)
+Ouvrez une [issue](https://github.com/Nathan-Josue/jsonplusplus/issues) avec :
+- Description du bug
+- Étapes pour reproduire
+- Comportement attendu vs comportement actuel
+- Version de Python et de la bibliothèque
 
-**Détection automatique des types :**
-- `int32` : Entiers
-- `float32` : Nombres décimaux
-- `str` : Chaînes de caractères
-- `bool` : Booléens
-- `json` : Objets complexes (fallback)
+---
 
-**Codes d'erreur :**
-- `400` : Liste JSON vide
-- `500` : Erreur interne lors de l'analyse
+## 👤 Auteur
 
-**Exemple avec curl :**
-```bash
-curl -X POST "http://localhost:8000/api/preview" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "data": [
-         {"id": 1, "name": "Produit 1", "price": 100.50, "active": true},
-         {"id": 2, "name": "Produit 2", "price": 200.75, "active": false}
-       ]
-     }'
-```
+**Nathan Josué**
 
-**Exemple avec Python :**
-```python
-import requests
+- GitHub: [@Nathan-Josue](https://github.com/Nathan-Josue)
+- Projet: [jsonplusplus](https://github.com/Nathan-Josue/jsonplusplus)
 
-data = {
-    "data": [
-        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
-        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
-    ]
-}
+---
 
-response = requests.post(
-    "http://localhost:8000/api/preview",
-    json=data
-)
+## 🙏 Remerciements
 
-result = response.json()
-print(f"Colonnes détectées: {result['fields']}")
-print(f"Types: {result['types']}")
-print(f"Taille estimée: {result['estimated_size']} bytes")
-```
+- `orjson` pour le parsing JSON ultra-rapide
+- `zstandard` pour la compression efficace
+- Inspiré par les formats colonnaires modernes (Apache Parquet, Apache Arrow)
 
-## 📝 Exemples
+---
 
-### Exemple complet : Encoder puis décoder
+## 📚 Ressources
 
-```python
-from backend.logical.encoder import jonx_encode
-from backend.logical.decoder import JONXFile
+- [Documentation complète](https://github.com/Nathan-Josue/jsonplusplus/wiki)
+- [Exemples avancés](https://github.com/Nathan-Josue/jsonplusplus/examples)
+- [Changelog](https://github.com/Nathan-Josue/jsonplusplus/blob/master/CHANGELOG.md)
 
-# 1. Encoder un JSON en JONX
-jonx_encode("data/json/data.json", "data/json++/data_jonx.json++")
+---
 
-# 2. Charger le fichier JONX
-jonx_file = JONXFile("data/json++/data_jonx.json++")
-
-# 3. Accéder aux métadonnées
-print(f"Colonnes: {jonx_file.fields}")
-print(f"Types: {jonx_file.types}")
-
-# 4. Récupérer une colonne spécifique
-prices = jonx_file.get_column("price")
-print(f"Prix: {prices}")
-
-# 5. Utiliser les index pour des recherches rapides
-min_price = jonx_file.find_min("price", use_index=True)
-print(f"Prix minimum: {min_price}")
-```
-
-### Exemple complet avec l'API REST
-
-```python
-import requests
-import json
-
-# 1. Prévisualiser les métadonnées
-preview_data = {
-    "data": [
-        {"id": 1, "name": "Produit 1", "price": 100.50, "active": True},
-        {"id": 2, "name": "Produit 2", "price": 200.75, "active": False}
-    ]
-}
-
-response = requests.post(
-    "http://localhost:8000/api/preview",
-    json=preview_data
-)
-preview_result = response.json()
-print(f"Métadonnées: {json.dumps(preview_result, indent=2)}")
-
-# 2. Encoder JSON → JONX (via body JSON)
-response = requests.post(
-    "http://localhost:8000/api/encode/json",
-    json=preview_data
-)
-
-with open("output.json++", "wb") as f:
-    f.write(response.content)
-print("Fichier JONX créé: output.json++")
-
-# 3. Décoder JONX → JSON
-with open("output.json++", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/api/decode",
-        files={"file": f}
-    )
-    decode_result = response.json()
-    print(f"Données décodées: {json.dumps(decode_result['json_data'], indent=2)}")
-
-# 4. Encoder depuis un fichier JSON
-with open("data.json", "rb") as f:
-    response = requests.post(
-        "http://localhost:8000/api/encode",
-        files={"file": f}
-    )
-    with open("data.json++", "wb") as out:
-        out.write(response.content)
-    print("Fichier JONX créé depuis upload: data.json++")
-
-# 5. Vérifier la santé de l'API
-response = requests.get("http://localhost:8000/health")
-print(f"Statut API: {response.json()}")
-```
-
-## 🎯 Avantages du format JONX
-
-1. **Compression efficace** : Utilisation de zstd pour une compression optimale
-2. **Stockage en colonnes** : Meilleure compression pour les données tabulaires
-3. **Types optimisés** : Stockage binaire pour les types numériques
-4. **Index automatiques** : Recherches rapides sur les colonnes numériques
-5. **Lecture sélective** : Décompression à la demande des colonnes
-6. **Format binaire** : Plus rapide à lire que JSON textuel
-
-## Licence
-
-Ce projet est fourni tel quel pour usage éducatif et de développement.
-
-## Contribution
-
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
-
+**⭐ Si ce projet vous est utile, n'hésitez pas à lui donner une étoile sur GitHub !**
