@@ -741,3 +741,210 @@ class JONXFile:
             self._validate_field_name(field)
         
         return {field: self.get_column(field) for field in field_names}
+
+    # ============================================================================
+    # MÉTHODES UTILITAIRES
+    # ============================================================================
+
+    def info(self):
+        """
+        Retourne un dictionnaire avec toutes les métadonnées du fichier JONX.
+        
+        Returns:
+            dict: Dictionnaire contenant :
+                - path: Chemin du fichier
+                - version: Version du format JONX
+                - num_rows: Nombre de lignes
+                - num_columns: Nombre de colonnes
+                - fields: Liste des noms de colonnes
+                - types: Dictionnaire des types par colonne
+                - indexes: Liste des colonnes avec index
+                - file_size: Taille du fichier en bytes
+        """
+        try:
+            file_size = os.path.getsize(self.path)
+        except OSError:
+            file_size = None
+        
+        return {
+            "path": self.path,
+            "version": 1,  # Version actuelle du format
+            "num_rows": self.count() if len(self.fields) > 0 else 0,
+            "num_columns": len(self.fields),
+            "fields": self.fields.copy(),
+            "types": self.types.copy(),
+            "indexes": list(self.indexes.keys()),
+            "file_size": file_size
+        }
+
+    def has_index(self, field):
+        """
+        Vérifie si une colonne a un index disponible.
+        
+        Args:
+            field: Nom de la colonne à vérifier
+        
+        Returns:
+            bool: True si la colonne a un index, False sinon
+            
+        Raises:
+            JONXValidationError: Si la colonne n'existe pas
+        """
+        self._validate_field_name(field)
+        return field in self.indexes
+
+    def is_numeric(self, field):
+        """
+        Vérifie si une colonne est de type numérique.
+        
+        Args:
+            field: Nom de la colonne à vérifier
+        
+        Returns:
+            bool: True si la colonne est numérique, False sinon
+            
+        Raises:
+            JONXValidationError: Si la colonne n'existe pas
+        """
+        self._validate_field_name(field)
+        col_type = self.types.get(field)
+        return col_type in ("int16", "int32", "float16", "float32")
+
+    def check_schema(self):
+        """
+        Vérifie la cohérence du schéma du fichier JONX.
+        
+        Returns:
+            dict: Dictionnaire avec les résultats de la vérification :
+                - valid: bool - True si le schéma est valide
+                - errors: list - Liste des erreurs trouvées
+                - warnings: list - Liste des avertissements
+        
+        Raises:
+            JONXFileError: Si le fichier ne peut pas être lu
+        """
+        errors = []
+        warnings = []
+        
+        # Vérifier que tous les champs ont un type défini
+        for field in self.fields:
+            if field not in self.types:
+                errors.append(f"Le champ '{field}' n'a pas de type défini")
+        
+        # Vérifier que tous les types correspondent à des champs
+        for field_name, field_type in self.types.items():
+            if field_name not in self.fields:
+                errors.append(f"Le type '{field_type}' est défini pour un champ inexistant: '{field_name}'")
+        
+        # Vérifier que les index correspondent à des colonnes numériques
+        for index_field in self.indexes.keys():
+            if index_field not in self.fields:
+                errors.append(f"L'index pour le champ inexistant '{index_field}' existe")
+            elif not self.is_numeric(index_field):
+                warnings.append(f"L'index pour le champ non-numérique '{index_field}' existe (inhabituel)")
+        
+        # Vérifier que les colonnes compressées existent pour tous les champs
+        for field in self.fields:
+            if field not in self.compressed_columns:
+                errors.append(f"La colonne '{field}' n'a pas de données compressées")
+        
+        # Vérifier la cohérence des longueurs (si possible sans décompression)
+        if len(self.fields) > 0:
+            try:
+                first_col = self.get_column(self.fields[0])
+                expected_length = len(first_col)
+                
+                for field in self.fields[1:]:
+                    col = self.get_column(field)
+                    if len(col) != expected_length:
+                        errors.append(
+                            f"La colonne '{field}' a une longueur incohérente "
+                            f"(attendu: {expected_length}, obtenu: {len(col)})"
+                        )
+            except Exception as e:
+                warnings.append(f"Impossible de vérifier la cohérence des longueurs: {str(e)}")
+        
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        }
+
+    def validate(self):
+        """
+        Valide l'intégrité complète du fichier JONX.
+        
+        Cette méthode effectue une validation approfondie en :
+        - Vérifiant le schéma
+        - Vérifiant l'intégrité des données
+        - Tentant de décompresser toutes les colonnes
+        - Vérifiant les index
+        
+        Returns:
+            dict: Dictionnaire avec les résultats de la validation :
+                - valid: bool - True si le fichier est valide
+                - errors: list - Liste des erreurs trouvées
+                - warnings: list - Liste des avertissements
+        
+        Raises:
+            JONXFileError: Si le fichier ne peut pas être lu
+            JONXDecodeError: Si le fichier est corrompu
+        """
+        errors = []
+        warnings = []
+        
+        # 1. Vérifier le schéma
+        schema_check = self.check_schema()
+        errors.extend(schema_check["errors"])
+        warnings.extend(schema_check["warnings"])
+        
+        # 2. Vérifier que le fichier existe et est lisible
+        if not os.path.exists(self.path):
+            errors.append(f"Le fichier n'existe pas: {self.path}")
+            return {
+                "valid": False,
+                "errors": errors,
+                "warnings": warnings
+            }
+        
+        if not os.access(self.path, os.R_OK):
+            errors.append(f"Permission de lecture refusée: {self.path}")
+            return {
+                "valid": False,
+                "errors": errors,
+                "warnings": warnings
+            }
+        
+        # 3. Vérifier que toutes les colonnes peuvent être décompressées
+        for field in self.fields:
+            try:
+                column = self.get_column(field)
+                if len(column) == 0:
+                    warnings.append(f"La colonne '{field}' est vide")
+            except Exception as e:
+                errors.append(f"Erreur lors de la décompression de la colonne '{field}': {str(e)}")
+        
+        # 4. Vérifier que tous les index peuvent être lus
+        for index_field in self.indexes.keys():
+            try:
+                idx = orjson.loads(zstd.ZstdDecompressor().decompress(self.indexes[index_field]))
+                if len(idx) == 0:
+                    warnings.append(f"L'index pour '{index_field}' est vide")
+                elif len(idx) != self.count():
+                    errors.append(
+                        f"L'index pour '{index_field}' a une longueur incohérente "
+                        f"(attendu: {self.count()}, obtenu: {len(idx)})"
+                    )
+            except Exception as e:
+                errors.append(f"Erreur lors de la lecture de l'index '{index_field}': {str(e)}")
+        
+        # 5. Vérifier la cohérence des types
+        for field, col_type in self.types.items():
+            if col_type not in ("int16", "int32", "float16", "float32", "bool", "str", "json"):
+                warnings.append(f"Type inconnu pour la colonne '{field}': {col_type}")
+        
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "warnings": warnings
+        }

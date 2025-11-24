@@ -296,6 +296,117 @@ total_rows = file.count()        # Nombre total de lignes
 price_count = file.count("price")  # Nombre d'éléments dans la colonne price
 ```
 
+#### Méthodes utilitaires
+
+##### `info() -> dict`
+
+Retourne un dictionnaire avec toutes les métadonnées du fichier JONX.
+
+**Retourne :**
+- `dict` avec les clés suivantes :
+  - `path` (str) : Chemin du fichier
+  - `version` (int) : Version du format JONX
+  - `num_rows` (int) : Nombre de lignes
+  - `num_columns` (int) : Nombre de colonnes
+  - `fields` (list) : Liste des noms de colonnes
+  - `types` (dict) : Dictionnaire des types par colonne
+  - `indexes` (list) : Liste des colonnes avec index
+  - `file_size` (int) : Taille du fichier en bytes
+
+**Exemple :**
+```python
+file = JONXFile("data.jonx")
+metadata = file.info()
+print(f"Fichier: {metadata['path']}")
+print(f"Lignes: {metadata['num_rows']}")
+print(f"Colonnes: {metadata['num_columns']}")
+print(f"Taille: {metadata['file_size']} bytes")
+```
+
+##### `has_index(field: str) -> bool`
+
+Vérifie si une colonne a un index disponible.
+
+**Paramètres :**
+- `field` (str) : Nom de la colonne à vérifier
+
+**Retourne :**
+- `bool` : True si la colonne a un index, False sinon
+
+**Raises :**
+- `JONXValidationError` : Si la colonne n'existe pas
+
+**Exemple :**
+```python
+file = JONXFile("data.jonx")
+if file.has_index("price"):
+    print("La colonne 'price' a un index")
+```
+
+##### `is_numeric(field: str) -> bool`
+
+Vérifie si une colonne est de type numérique.
+
+**Paramètres :**
+- `field` (str) : Nom de la colonne à vérifier
+
+**Retourne :**
+- `bool` : True si la colonne est numérique, False sinon
+
+**Raises :**
+- `JONXValidationError` : Si la colonne n'existe pas
+
+**Exemple :**
+```python
+file = JONXFile("data.jonx")
+if file.is_numeric("price"):
+    total = file.sum("price")
+```
+
+##### `check_schema() -> dict`
+
+Vérifie la cohérence du schéma du fichier JONX.
+
+**Retourne :**
+- `dict` avec les clés suivantes :
+  - `valid` (bool) : True si le schéma est valide
+  - `errors` (list) : Liste des erreurs trouvées
+  - `warnings` (list) : Liste des avertissements
+
+**Exemple :**
+```python
+file = JONXFile("data.jonx")
+schema_check = file.check_schema()
+if not schema_check["valid"]:
+    print("Erreurs de schéma:", schema_check["errors"])
+```
+
+##### `validate() -> dict`
+
+Valide l'intégrité complète du fichier JONX. Effectue une validation approfondie en vérifiant le schéma, l'intégrité des données, et en tentant de décompresser toutes les colonnes.
+
+**Retourne :**
+- `dict` avec les clés suivantes :
+  - `valid` (bool) : True si le fichier est valide
+  - `errors` (list) : Liste des erreurs trouvées
+  - `warnings` (list) : Liste des avertissements
+
+**Raises :**
+- `JONXFileError` : Si le fichier ne peut pas être lu
+- `JONXDecodeError` : Si le fichier est corrompu
+
+**Exemple :**
+```python
+file = JONXFile("data.jonx")
+validation = file.validate()
+if validation["valid"]:
+    print("✅ Fichier valide")
+else:
+    print("❌ Erreurs:", validation["errors"])
+if validation["warnings"]:
+    print("⚠️  Avertissements:", validation["warnings"])
+```
+
 ---
 
 ### 📊 Tableau récapitulatif des opérations
@@ -313,6 +424,11 @@ price_count = file.count("price")  # Nombre d'éléments dans la colonne price
 | `sum()` | Agrégation | Somme d'une colonne numérique | O(n) |
 | `avg()` | Agrégation | Moyenne d'une colonne numérique | O(n) |
 | `count()` | Agrégation | Nombre d'éléments | O(1) |
+| `info()` | Utilitaire | Métadonnées complètes du fichier | O(1) |
+| `has_index()` | Utilitaire | Vérifie si une colonne a un index | O(1) |
+| `is_numeric()` | Utilitaire | Vérifie si une colonne est numérique | O(1) |
+| `check_schema()` | Utilitaire | Vérifie la cohérence du schéma | O(n) |
+| `validate()` | Utilitaire | Valide l'intégrité complète | O(n) |
 
 **Légende :**
 - `n` = nombre de lignes
