@@ -1,0 +1,79 @@
+feat: Version 1.0.5 - Validation robuste et gestion d'erreurs complète
+
+## 🎯 Résumé
+Ajout d'un système complet de validation et gestion d'erreurs avec exceptions personnalisées, tests unitaires complets et amélioration de la robustesse du code.
+
+## ✨ Nouvelles fonctionnalités
+
+### Exceptions personnalisées
+- Ajout du module `exceptions.py` avec hiérarchie d'exceptions :
+  - `JONXError` : Exception de base
+  - `JONXValidationError` : Erreurs de validation
+  - `JONXEncodeError` : Erreurs d'encodage
+  - `JONXDecodeError` : Erreurs de décodage
+  - `JONXFileError` : Erreurs de fichiers
+  - `JONXSchemaError` : Erreurs de schéma
+  - `JONXIndexError` : Erreurs d'index
+
+### Validation des données d'entrée (encoder.py)
+- Validation que tous les objets JSON ont les mêmes clés
+- Validation que toutes les colonnes ont la même longueur
+- Validation des types de données avant encodage
+- Vérification de l'existence et des permissions des fichiers
+- Messages d'erreur détaillés avec contexte
+
+### Validation des paramètres (decoder.py)
+- Validation de l'intégrité du format JONX
+- Vérification de la signature et de la version
+- Validation des tailles de données
+- Méthodes `_validate_field_name()` et `_validate_numeric_field()`
+- Validation dans toutes les méthodes de `JONXFile` :
+  - `get_column()`, `get_columns()`
+  - `find_min()`, `find_max()`
+  - `sum()`, `avg()`, `count()`
+
+### Gestion des cas limites
+- Colonnes vides
+- Fichiers corrompus
+- Données insuffisantes
+- Index manquants
+- Types incompatibles
+
+## 🧪 Tests
+
+### Fichier tester.py complet
+- Tests d'encodage (encode_to_bytes, jonx_encode)
+- Tests de décodage (decode_from_bytes)
+- Tests JONXFile (toutes les méthodes)
+- Tests de validation et erreurs
+- Tests de types spéciaux (int16, int32, float16)
+- Gestion de la précision float16 dans les comparaisons
+- **15 tests au total, tous passent ✅**
+
+## 🔧 Améliorations techniques
+
+- Remplacement des `ValueError` génériques par des exceptions spécifiques
+- Messages d'erreur informatifs avec détails contextuels
+- Validation robuste à chaque étape du processus
+- Gestion appropriée de la précision float16 dans les tests
+- Code plus maintenable et débogable
+
+## 📦 Fichiers modifiés
+
+- `src/jsonplusplus/exceptions.py` : Nouveau module d'exceptions
+- `src/jsonplusplus/encoder.py` : Validation complète ajoutée
+- `src/jsonplusplus/decoder.py` : Validation des paramètres ajoutée
+- `src/jsonplusplus/__init__.py` : Export des exceptions
+- `tester.py` : Nouveau fichier de tests complet
+- `ROADMAP_V1.md` : Documentation de la roadmap
+
+## 🎉 Résultat
+
+Version stable avec validation complète, tous les tests passent, prête pour la production.
+
+---
+
+Version: 1.0.5
+Tests: 15/15 ✅
+Statut: Stable
+
