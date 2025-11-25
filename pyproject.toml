@@ -1,6 +1,6 @@
 [project]
 name = "jsonplusplus"
-version = "1.0.7"
+version = "1.1.0"
 description = "Un convertisseur JSON ↔ JSON++ optimisé"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -9,13 +9,17 @@ authors = [
     {name = "Nathan Josue"},
 ]
 
-keywords = ["json", "json++", "data", "conversion", "parser", "jsonpp", "jsonplusplus", "structure"]
+keywords = ["json", "json++", "data", "conversion", "parser", "jsonpp", "jsonplusplus", "structure", "jonx"]
 
 dependencies = []
+
+[project.optional-dependencies]
+gui = ["customtkinter>=5.2.0"]
 
 [project.scripts]
 jsonplusplus = "jsonplusplus.cli:main"
 jonx = "jsonplusplus.cli:main"
+jonx-viewer = "jsonplusplus.viewer_main:main"
 
 [project.urls]
 Homepage = "https://github.com/Nathan-Josue/jsonplusplus"

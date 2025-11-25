@@ -1,9 +1,11 @@
+![](/assets/logo.svg)
+
 # jsonplusplus
 
 [![PyPI version](https://badge.fury.io/py/jsonplusplus.svg)](https://badge.fury.io/py/jsonplusplus)
 [![Python versions](https://img.shields.io/pypi/pyversions/jsonplusplus.svg)](https://pypi.org/project/jsonplusplus/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/Nathan-Josue/jsonplusplus/ci.yml?branch=master)](https://github.com/Nathan-Josue/jsonplusplus/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/Nathan-Josue/jsonplusplus/workflow.yml)](https://github.com/Nathan-Josue/jsonplusplus/actions)
 
 **Un format de données JSON colonné, compressé et optimisé pour la vitesse et le stockage.**
 
@@ -108,7 +110,10 @@ Encode des données JSON en mémoire en bytes JONX.
 ```python
 from jsonplusplus import encode_to_bytes
 
-data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
+data = [
+        {"id": 1, "name": "Alice"}, 
+        {"id": 2, "name": "Bob"}
+       ]
 jonx_bytes = encode_to_bytes(data)
 ```
 
@@ -600,6 +605,38 @@ Vous pouvez aussi utiliser le CLI via Python :
 python -m jsonplusplus encode data.json
 python -m jsonplusplus info data.jonx
 ```
+
+#### `view` - Visualiseur GUI
+
+Ouvre une application desktop moderne pour visualiser les fichiers JONX.
+
+```bash
+# Ouvrir le visualiseur
+jsonplusplus view
+
+# Ouvrir directement un fichier
+jsonplusplus view data.jonx
+
+# Ou utiliser la commande dédiée
+jonx-viewer data.jonx
+```
+
+**Fonctionnalités du visualiseur :**
+- Interface moderne avec mode sombre/clair
+- Tableau interactif avec pagination
+- Recherche en temps réel
+- Métadonnées et statistiques
+- Export CSV/JSON
+- Statistiques automatiques (min, max, avg)
+
+**Installation du support GUI :**
+```bash
+pip install jsonplusplus[gui]
+# Ou
+pip install customtkinter
+```
+
+Voir [VIEWER_GUI.md](VIEWER_GUI.md) pour la documentation complète du visualiseur.
 
 ---
 

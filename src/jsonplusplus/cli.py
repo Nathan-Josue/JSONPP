@@ -223,6 +223,26 @@ def cmd_query(args):
         sys.exit(1)
 
 
+def cmd_view(args):
+    """Commande pour ouvrir le visualiseur GUI"""
+    try:
+        from .viewer import main as viewer_main
+        
+        # Lancer le visualiseur avec le fichier optionnel
+        viewer_main(initial_file=args.file)
+        
+    except ImportError as e:
+        print("❌ Erreur: customtkinter n'est pas installé", file=sys.stderr)
+        print("   Installez-le avec: pip install customtkinter", file=sys.stderr)
+        print(f"   Détails: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ Erreur lors du lancement du visualiseur: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
 def main():
     """Point d'entrée principal du CLI"""
     parser = argparse.ArgumentParser(
@@ -246,6 +266,10 @@ Exemples:
   # Interroger un fichier
   jsonplusplus query data.jonx price --min
   jsonplusplus query data.jonx age --avg
+  
+  # Ouvrir le visualiseur GUI
+  jsonplusplus view
+  jsonplusplus view data.jonx
         """
     )
     
@@ -290,6 +314,11 @@ Exemples:
     query_parser.add_argument("--use-index", action="store_true",
                              help="Utiliser l'index pour les opérations min/max")
     query_parser.set_defaults(func=cmd_query)
+    
+    # Commande view
+    view_parser = subparsers.add_parser("view", help="Ouvrir le visualiseur GUI")
+    view_parser.add_argument("file", nargs="?", help="Fichier JONX à ouvrir (optionnel)")
+    view_parser.set_defaults(func=cmd_view)
     
     args = parser.parse_args()
     
