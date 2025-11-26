@@ -21,7 +21,7 @@ from . import JONXFile, JONXError
 
 
 # Configuration de CustomTkinter
-ctk.set_appearance_mode("dark")  # Mode sombre par défaut
+ctk.set_appearance_mode("white")  # Mode sombre par défaut
 ctk.set_default_color_theme("blue")  # Thème bleu
 
 
@@ -224,9 +224,10 @@ class JONXViewer(ctk.CTk):
         title = ctk.CTkLabel(main_frame, text="📋 Données", font=ctk.CTkFont(size=16, weight="bold"))
         title.grid(row=0, column=0, pady=10)
         
-        # Frame pour le tableau avec scrollbars
-        table_frame = ctk.CTkFrame(main_frame)
-        table_frame.grid(row=1, column=0, sticky="nsew", padx=10, pady=5)
+        # Frame pour le tableau avec scrollbars - largeur fixe avec scroll horizontal
+        table_frame = ctk.CTkFrame(main_frame, width=800)
+        table_frame.grid(row=1, column=0, sticky="ns", padx=10, pady=5)
+        table_frame.grid_propagate(False)  # Empêche le frame de s'agrandir automatiquement
         table_frame.grid_columnconfigure(0, weight=1)
         table_frame.grid_rowconfigure(0, weight=1)
         
